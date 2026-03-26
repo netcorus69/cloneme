@@ -12,6 +12,7 @@ backup/
 # Ignore logs
 *.log
 cloneme_log.txt
+cloneme_err.txt
 
 # Ignore build artifacts
 *.o

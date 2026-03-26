@@ -1,5 +1,8 @@
 ## About Cloneme
 
+![3D animation ](monkeyface.png)
+![Input windows ](textscreen.png)
+
 Cloneme is a research and learning project that explores how **voice recognition** can drive **real‑time mesh animation**.  
 Built in C with OpenGL, it integrates the [Vosk speech recognition engine](https://alphacephei.com/vosk/) to capture spoken 
 input and translate it into dynamic facial expressions and character responses.  

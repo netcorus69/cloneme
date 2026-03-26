@@ -11,6 +11,21 @@ The project is designed as a modular system: audio capture, memory management, a
 reusable components. This makes it easier to extend the framework with new features such as eye movement, emotion mapping, 
 or additional voice models.  
 
+## Why C?
+
+This project is intentionally written in **C**.  
+I chose C because it gives me direct, low‑level control over memory, performance, and hardware interaction. Unlike higher‑level languages, C keeps me close to the metal — every pointer, every allocation, every structure is explicit.  
+
+For graphics and animation work, this matters:
+- **Efficiency**: C produces fast, predictable binaries with minimal overhead.  
+- **Portability**: C code can be compiled across platforms with very few changes.  
+- **Transparency**: There’s no hidden runtime; I can see exactly how data flows.  
+- **Learning value**: Working in C forces me to understand the fundamentals of rendering, mesh manipulation, and system calls.  
+
+This project isn’t just about building features — it’s about exploring the raw power of C as a language for graphics 
+programming and animation systems.
+
+
 Cloneme is not a finished product but a **sandbox for experimentation** — a place to test ideas about combining speech, 
 animation, and modular programming into a cohesive workflow.
 

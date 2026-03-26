@@ -1,0 +1,111 @@
+hello|hello
+open geany|system:geany &
+open firefox|system:firefox &
+open terminal|system:gnome-terminal &
+list files|system:ls -l
+list all files|system:ls -a
+show processes|system:ps aux
+kill process|system:kill -9 1234
+disk usage|system:df -h
+memory usage|system:free -h
+system info|system:uname -a
+network info|system:ifconfig
+ping google|system:ping -c 4 google.com
+update system|system:sudo apt update && sudo apt upgrade -y
+install package|system:sudo apt install <package>
+remove package|system:sudo apt remove <package>
+search package|system:apt search <package>
+open writer|system:libreoffice --writer &
+open calc|system:libreoffice --calc &
+open impress|system:libreoffice --impress &
+open draw|system:libreoffice --draw &
+open base|system:libreoffice --base &
+open math|system:libreoffice --math &
+open memory|memory
+open firefox|system:firefox &
+open terminal|system:gnome-terminal &
+list files|system:ls -l
+list all files|system:ls -a
+show processes|system:ps aux
+kill process|system:kill -9 1234
+disk usage|system:df -h
+memory usage|system:free -h
+system info|system:uname -a
+network info|system:ifconfig
+ping google|system:ping -c 4 google.com
+update system|system:sudo apt update && sudo apt upgrade -y
+install package|system:sudo apt install <package>
+remove package|system:sudo apt remove <package>
+search package|system:apt search <package>
+open writer|system:libreoffice --writer &
+open calc|system:libreoffice --calc &
+open impress|system:libreoffice --impress &
+open draw|system:libreoffice --draw &
+open base|system:libreoffice --base &
+open math|system:libreoffice --math &
+shutdown now|system:sudo shutdown now
+shutdown in 10 minutes|system:sudo shutdown +10
+reboot system|system:sudo reboot
+show running tasks|system:top
+show running tasks advanced|system:htop
+check logs|system:journalctl -xe
+kernel messages|system:dmesg | less
+cpu info|system:lscpu
+memory info|system:cat /proc/meminfo
+disk partitions|system:lsblk
+mounted filesystems|system:mount | column -t
+check services|system:systemctl list-units --type=service
+restart network|system:sudo systemctl restart NetworkManager
+check network connections|system:ss -tulwn
+check open ports|system:sudo netstat -tulnp
+check firewall|system:sudo ufw status
+check temperature|system:sensors
+check battery|system:upower -i $(upower -e | grep BAT)
+create user|system:sudo adduser <username>
+delete user|system:sudo deluser <username>
+change password|system:passwd <username>
+list users|system:cat /etc/passwd
+list groups|system:cat /etc/group
+add user to group|system:sudo usermod -aG <group> <username>
+remove user from group|system:sudo gpasswd -d <username> <group>
+show current user|system:whoami
+copy file|system:cp <source> <destination>
+move file|system:mv <source> <destination>
+delete file|system:rm <file>
+delete directory|system:rm -r <directory>
+make directory|system:mkdir <directory>
+list directory|system:ls <directory>
+find file|system:find / -name <filename>
+search text in files|system:grep -r "<text>" <directory>
+show file content|system:cat <file>
+edit file|system:nano <file>
+permissions of file|system:ls -l <file>
+change permissions|system:chmod 755 <file>
+change ownership|system:sudo chown <user>:<group> <file>
+check network interfaces|system:ip addr show
+check routing table|system:ip route show
+check active connections|system:ss -tulwn
+check open ports|system:sudo netstat -tulnp
+ping google|system:ping -c 4 google.com
+download file|system:wget <url>
+secure copy file|system:scp <source> <user>@<host>:<destination>
+remote login|system:ssh <user>@<host>
+check firewall|system:sudo ufw status
+enable firewall|system:sudo ufw enable
+disable firewall|system:sudo ufw disable
+allow port|system:sudo ufw allow <port>
+deny port|system:sudo ufw deny <port>
+list iptables rules|system:sudo iptables -L -n -v
+flush iptables rules|system:sudo iptables -F
+check hosts file|system:cat /etc/hosts
+test|test success
+firefox|system:firefox &
+files|system:nemo &
+nemo|system:nemo &
+google|system:xdg-open https://www.google.com &
+kikad|system:kicad &
+kicad|system:kicad &
+writer|system:libreoffice --writer &
+logisim|system:logisim &
+geany|system:geany &
+how are you|im fine thanks

@@ -1,0 +1,306 @@
+hello|hello
+open geany|system:geany &
+open firefox|system:firefox &
+open terminal|system:gnome-terminal &
+list files|system:ls -l
+list all files|system:ls -a
+show processes|system:ps aux
+kill process|system:kill -9 1234
+disk usage|system:df -h
+memory usage|system:free -h
+system info|system:uname -a
+network info|system:ifconfig
+ping google|system:ping -c 4 google.com
+update system|system:sudo apt update && sudo apt upgrade -y
+install package|system:sudo apt install <package>
+remove package|system:sudo apt remove <package>
+search package|system:apt search <package>
+open writer|system:libreoffice --writer &
+open calc|system:libreoffice --calc &
+open impress|system:libreoffice --impress &
+open draw|system:libreoffice --draw &
+open base|system:libreoffice --base &
+open math|system:libreoffice --math &
+open memory|memory
+open firefox|system:firefox &
+open terminal|system:gnome-terminal &
+list files|system:ls -l
+list all files|system:ls -a
+show processes|system:ps aux
+kill process|system:kill -9 1234
+disk usage|system:df -h
+memory usage|system:free -h
+system info|system:uname -a
+network info|system:ifconfig
+ping google|system:ping -c 4 google.com
+update system|system:sudo apt update && sudo apt upgrade -y
+install package|system:sudo apt install <package>
+remove package|system:sudo apt remove <package>
+search package|system:apt search <package>
+open writer|system:libreoffice --writer &
+open calc|system:libreoffice --calc &
+open impress|system:libreoffice --impress &
+open draw|system:libreoffice --draw &
+open base|system:libreoffice --base &
+open math|system:libreoffice --math &
+shutdown now|system:sudo shutdown now
+shutdown in 10 minutes|system:sudo shutdown +10
+reboot system|system:sudo reboot
+show running tasks|system:top
+show running tasks advanced|system:htop
+check logs|system:journalctl -xe
+kernel messages|system:dmesg | less
+cpu info|system:lscpu
+memory info|system:cat /proc/meminfo
+disk partitions|system:lsblk
+mounted filesystems|system:mount | column -t
+check services|system:systemctl list-units --type=service
+restart network|system:sudo systemctl restart NetworkManager
+check network connections|system:ss -tulwn
+check open ports|system:sudo netstat -tulnp
+check firewall|system:sudo ufw status
+check temperature|system:sensors
+check battery|system:upower -i $(upower -e | grep BAT)
+create user|system:sudo adduser <username>
+delete user|system:sudo deluser <username>
+change password|system:passwd <username>
+list users|system:cat /etc/passwd
+list groups|system:cat /etc/group
+add user to group|system:sudo usermod -aG <group> <username>
+remove user from group|system:sudo gpasswd -d <username> <group>
+show current user|system:whoami
+copy file|system:cp <source> <destination>
+move file|system:mv <source> <destination>
+delete file|system:rm <file>
+delete directory|system:rm -r <directory>
+make directory|system:mkdir <directory>
+list directory|system:ls <directory>
+find file|system:find / -name <filename>
+search text in files|system:grep -r "<text>" <directory>
+show file content|system:cat <file>
+edit file|system:nano <file>
+permissions of file|system:ls -l <file>
+change permissions|system:chmod 755 <file>
+change ownership|system:sudo chown <user>:<group> <file>
+check network interfaces|system:ip addr show
+check routing table|system:ip route show
+check active connections|system:ss -tulwn
+check open ports|system:sudo netstat -tulnp
+ping google|system:ping -c 4 google.com
+download file|system:wget <url>
+secure copy file|system:scp <source> <user>@<host>:<destination>
+remote login|system:ssh <user>@<host>
+check firewall|system:sudo ufw status
+enable firewall|system:sudo ufw enable
+disable firewall|system:sudo ufw disable
+allow port|system:sudo ufw allow <port>
+deny port|system:sudo ufw deny <port>
+list iptables rules|system:sudo iptables -L -n -v
+flush iptables rules|system:sudo iptables -F
+check hosts file|system:cat /etc/hosts
+trace route|system:traceroute <host>
+dns lookup|system:dig <domain>
+whois lookup|system:whois <domain>
+check ssl certificate|system:openssl s_client -connect <domain>:443
+update system apt|system:sudo apt update && sudo apt upgrade -y
+install package apt|system:sudo apt install <package>
+remove package apt|system:sudo apt remove <package>
+search package apt|system:apt search <package>
+update system dnf|system:sudo dnf upgrade --refresh -y
+install package dnf|system:sudo dnf install <package>
+remove package dnf|system:sudo dnf remove <package>
+search package dnf|system:dnf search <package>
+update system yum|system:sudo yum update -y
+install package yum|system:sudo yum install <package>
+remove package yum|system:sudo yum remove <package>
+search package yum|system:yum search <package>
+update system pacman|system:sudo pacman -Syu
+install package pacman|system:sudo pacman -S <package>
+remove package pacman|system:sudo pacman -R <package>
+search package pacman|system:pacman -Ss <package>
+install package snap|system:sudo snap install <package>
+remove package snap|system:sudo snap remove <package>
+list snaps|system:snap list
+install package flatpak|system:flatpak install flathub <package>
+remove package flatpak|system:flatpak uninstall <package>
+list flatpaks|system:flatpak list
+update flatpaks|system:flatpak update
+check git version|system:git --version
+clone repository|system:git clone <repo_url>
+commit changes|system:git commit -m "<message>"
+push changes|system:git push origin <branch>
+pull changes|system:git pull origin <branch>
+check git status|system:git status
+list branches|system:git branch -a
+checkout branch|system:git checkout <branch>
+compile c program|system:gcc <source.c> -o <output>
+compile c++ program|system:g++ <source.cpp> -o <output>
+run make|system:make
+clean build|system:make clean
+check docker version|system:docker --version
+list docker containers|system:docker ps -a
+start docker container|system:docker start <container_id>
+stop docker container|system:docker stop <container_id>
+remove docker container|system:docker rm <container_id>
+list docker images|system:docker images
+build docker image|system:docker build -t <image_name> .
+run docker image|system:docker run -it <image_name>
+check services|system:systemctl list-units --type=service
+restart service|system:sudo systemctl restart <service>
+enable service|system:sudo systemctl enable <service>
+disable service|system:sudo systemctl disable <service>
+check service status|system:systemctl status <service>
+show calendar|system:cal
+show calendar for year|system:cal -y
+create cron job|system:crontab -e
+list cron jobs|system:crontab -l
+remove cron jobs|system:crontab -r
+create todo file|system:touch ~/todo.txt
+show todo list|system:cat ~/todo.txt
+edit todo list|system:nano ~/todo.txt
+send mail|system:mail -s "<subject>" <recipient>
+check mail|system:mail
+compress files|system:zip archive.zip <file1> <file2>
+extract zip|system:unzip archive.zip
+create tar archive|system:tar -cvf archive.tar <directory>
+extract tar archive|system:tar -xvf archive.tar
+create tar.gz archive|system:tar -czvf archive.tar.gz <directory>
+extract tar.gz archive|system:tar -xzvf archive.tar.gz
+show calendar|system:cal
+show calendar for year|system:cal -y
+create cron job|system:crontab -e
+list cron jobs|system:crontab -l
+remove cron jobs|system:crontab -r
+create todo file|system:touch ~/todo.txt
+show todo list|system:cat ~/todo.txt
+edit todo list|system:nano ~/todo.txt
+send mail|system:mail -s "<subject>" <recipient>
+check mail|system:mail
+compress files|system:zip archive.zip <file1> <file2>
+extract zip|system:unzip archive.zip
+create tar archive|system:tar -cvf archive.tar <directory>
+extract tar archive|system:tar -xvf archive.tar
+create tar.gz archive|system:tar -czvf archive.tar.gz <directory>
+extract tar.gz archive|system:tar -xzvf archive.tar.gz
+check date|system:date
+set date|system:sudo date -s "2026-02-22 12:00:00"
+check uptime|system:uptime
+check who is logged in|system:who
+check last logins|system:last
+check date|system:date
+set date|system:sudo date -s "2026-02-22 12:00:00"
+check uptime|system:uptime
+check who is logged in|system:who
+check last logins|system:last
+play music file|system:mpg123 <file.mp3>
+play music with vlc|system:vlc <file.mp3>
+play playlist|system:vlc <playlist.m3u>
+stop music|system:pkill vlc
+pause music|system:playerctl pause
+resume music|system:playerctl play
+record audio|system:arecord -d 10 -f cd test.wav
+record audio long|system:arecord -f cd -t wav -d 60 output.wav
+play recorded audio|system:aplay test.wav
+play video|system:vlc <file.mp4>
+stream video|system:vlc <url>
+convert video to mp3|system:ffmpeg -i <file.mp4> <output.mp3>
+convert video format|system:ffmpeg -i <input.mp4> <output.avi>
+take screenshot|system:gnome-screenshot
+take screenshot with delay|system:gnome-screenshot -d 5
+take screenshot of window|system:gnome-screenshot -w
+record screen|system:ffmpeg -video_size 1920x1080 -framerate 25 -f x11grab -i :0.0 output.mkv
+open image viewer|system:eog <image.png>
+edit image|system:gimp <image.png>
+view pdf|system:evince <file.pdf>
+create bash script|system:nano script.sh
+run bash script|system:bash script.sh
+make script executable|system:chmod +x script.sh
+list scripts|system:ls *.sh
+create alias|system:echo "alias ll='ls -la'" >> ~/.bashrc && source ~/.bashrc
+list aliases|system:alias
+remove alias|system:unalias <alias>
+set environment variable|system:export VAR=value
+show environment variables|system:printenv
+remove environment variable|system:unset VAR
+persistent environment variable|system:echo "export VAR=value" >> ~/.bashrc && source ~/.bashrc
+create cron job|system:crontab -e
+list cron jobs|system:crontab -l
+remove cron jobs|system:crontab -r
+create systemd timer|system:sudo nano /etc/systemd/system/mytimer.timer
+start systemd timer|system:sudo systemctl start mytimer.timer
+enable systemd timer|system:sudo systemctl enable mytimer.timer
+list systemd timers|system:systemctl list-timers
+schedule shutdown|system:sudo shutdown +30
+cancel scheduled shutdown|system:sudo shutdown -c
+open virt manager|system:virt-manager &
+start qemu vm|system:qemu-system-x86_64 -hda <disk.img> -m 2048
+list vagrant boxes|system:vagrant box list
+init vagrant|system:vagrant init <box>
+up vagrant|system:vagrant up
+halt vagrant|system:vagrant halt
+destroy vagrant|system:vagrant destroy
+check kubectl version|system:kubectl version --client
+list kubernetes pods|system:kubectl get pods
+list kubernetes services|system:kubectl get services
+describe pod|system:kubectl describe pod <pod_name>
+delete pod|system:kubectl delete pod <pod_name>
+apply config|system:kubectl apply -f <file.yaml>
+install helm chart|system:helm install <release_name> <chart>
+list helm releases|system:helm list
+upgrade helm release|system:helm upgrade <release_name> <chart>
+uninstall helm release|system:helm uninstall <release_name>
+check docker version|system:docker --version
+list docker containers|system:docker ps -a
+start docker container|system:docker start <container_id>
+stop docker container|system:docker stop <container_id>
+remove docker container|system:docker rm <container_id>
+list docker images|system:docker images
+build docker image|system:docker build -t <image_name>
+run docker image|system:docker run -it <image_name>
+hi|hello
+hi|hello
+how are you |im fine thanks
+how are you|im fine thanks
+wait|ok
+open|exit mic
+open opera|system:opera &
+opera|system:opera &
+open chrome|system:chrome &
+no no|it
+clone a me|glonass
+clone it|actually it
+actually it|a cheat
+clone|quit
+open editor|open editor
+browser|hi settings
+open reminder|theme
+hey|hey
+color|cut color
+color new|screen
+stop email|hi
+hi close text news delete|hi
+clock|clock
+timer|timer
+buddy|hello clone hey
+alarm new|editor create gallery
+base open files|open files browser copy
+table|table
+bullet open|sheet
+new|new
+right|new
+weather|rename
+writer|system:libreoffice --writer &
+run writer|system:libreoffice --writer &
+test.calc|open i file
+song|song
+hello new|files text
+italic|exit mic
+hi font text|load
+hello video|hey
+formula|docker
+alarm|hello
+internet|header weather
+calendar|table
+window|exit mic
+save|exit mic
+yes|yes

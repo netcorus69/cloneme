@@ -1,0 +1,23 @@
+# Build artifacts
+*.o
+cloneme
+*.exe
+*.so
+*.a
+
+# Editor and OS
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Logs and runtime files
+*.log
+*.err
+/tmp/
+*.tmp
+
+# Large generated assets (track with LFS if needed)
+*.obj
+*.png
+*.wav

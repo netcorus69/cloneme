@@ -22,3 +22,4 @@
 ✅ Logging initialized: stdout → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_log.txt, stderr → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_err.txt
 ✅ Logging initialized: stdout → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_log.txt, stderr → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_err.txt
 ✅ Logging initialized: stdout → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_log.txt, stderr → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_err.txt
+✅ Logging initialized: stdout → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_log.txt, stderr → /home/netcorus/workfile/progetti/miei progetti/cloneme/cloneme_err.txt

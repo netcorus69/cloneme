@@ -46,7 +46,27 @@ It combines C/OpenGL programming with speech-to-text (via Vosk) and facial anima
 - `voice.c`, `respond.c`, `mic.c` — audio capture and response modules  
 - `memory.c` — memory management routines  
 - `monkey.obj`, `monkey.mtl` — sample 3D assets for animation  
-- `vosk-model-*` — speech recognition models  
+- `vosk-model-*` — speech recognition models 
+
+## Why Join This Project?
+
+This project is for people who love **C** and want to explore graphics and animation at a low level.  
+If you enjoy:
+- Writing clean, efficient C code
+- Learning how meshes, morphs, and rendering pipelines work under the hood
+- Collaborating on modular systems that can grow (eyes, mouth, expressions, etc.)
+- Building tools that are transparent and reusable
+
+…then you’ll feel right at home here.
+
+## How to Contribute
+
+1. Fork the repo
+2. Clone locally
+3. Build with `gcc` or your preferred compiler
+4. Run the demo
+5. Submit pull requests with improvements or new features
+ 
 
 ## Getting Started
 1. Clone the repository:

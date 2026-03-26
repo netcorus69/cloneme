@@ -102,20 +102,6 @@ static const char *frag_normal_src =
 "  C = vec4(Nvis, 1.0);\n"
 "}\n";
 
-// FRAGMENT SHADER — Debug textured shader (visualize morph magnitude)
-static const char *frag_debug_src =
-"#version 330 core\n"
-"in vec3 vN; in vec3 vP; in vec2 vUV; in float vMorphMag;\n"
-"out vec4 C;\n"
-"uniform sampler2D albedoTex;\n" 
-"uniform float debugAmplify;\n"
-"void main(){\n"
-"  float m = clamp(vMorphMag * debugAmplify, 0.0, 1.0);\n" 
-"  vec3 col = mix(vec3(0.0,0.0,1.0), vec3(1.0,0.0,1.0), m);\n" 
-"  vec3 t = texture(albedoTex, vUV).rgb;\n"
-"  C = vec4(mix(t*0.6, col, m), 1.0);\n"
-"}\n";
-
 static const char *frag_final_src =
 "#version 330 core\n"
 "in vec3 vN; in vec3 vP; in vec2 vUV;\n"
@@ -207,18 +193,7 @@ static void init_sphere(){
 static GLuint g_prog;   // active shader program ID
 static M4 g_vp;         // combined View * Projection matrix (shared across draws)
 
-static void dp(float tx, float ty, float tz,
-               float sx, float sy, float sz,
-               float r,  float g,  float b, float sp){
-    M4 M,S,T,MVP;
-    mtrans(T,tx,ty,tz); mscl(S,sx,sy,sz); mmul(M,T,S); mmul(MVP,g_vp,M);
-    glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
-    glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M);
-    glUniform3f(glGetUniformLocation(g_prog,"col"),r,g,b);
-    glUniform1f(glGetUniformLocation(g_prog,"sp"),sp);
-    glBindVertexArray(g_vao);
-    glDrawElements(GL_TRIANGLES,g_ic,GL_UNSIGNED_INT,0);
-}
+
 
 static GLuint compile_shader(GLenum type, const char *src){
     GLuint id = glCreateShader(type);
@@ -335,7 +310,8 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
     unsigned *idx  =NULL; int idx_n=0,   idx_cap=0;
 
     // mapping: for each expanded vertex (vdata index), store original position index (0-based)
-    int *base_pos_idx = NULL; int base_pos_idx_cap = 0;
+    int *base_pos_idx = NULL; 
+    //int base_pos_idx_cap = 0;
 
     // DEBUG: temporary buffer to capture base expanded positions for comparison
     float *base_expanded_pos = NULL;
@@ -407,7 +383,7 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
                     // grow base_pos_idx to match new vertex capacity
                     int new_vert_cap = vdata_cap / 9;
                     base_pos_idx = realloc(base_pos_idx, sizeof(int) * new_vert_cap);
-                    base_pos_idx_cap = new_vert_cap;
+                    //base_pos_idx_cap = new_vert_cap;
                     // initialize new slots (optional)
                     for(int ii=old_vert_cap; ii<new_vert_cap; ++ii) base_pos_idx[ii] = -1;
                 }
@@ -433,11 +409,6 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
                 // choose mask from loaded mask file if available
 				float mask = 0.0f;
 				if(masks && p >= 0 && p < mask_count) mask = masks[p];
-
-				// DEBUG: print first 20 mask values and their original pos index
-				if(expanded_index < 20){
-					fprintf(stderr,"DEBUG mask[%d] = %f orig_idx=%d\n", expanded_index, mask, p);
-				}
 
 				// write into vdata (pos, norm, uv, mask)
 				vdata[vdata_n++] = px; vdata[vdata_n++] = py; vdata[vdata_n++] = pz;
@@ -522,20 +493,7 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
             }
         }
 
-        // DEBUG: print first 12 base vs morph samples to verify deltas
-        for(int i=0;i<12 && i<vert_count;i++){
-            float bx = 0.0f, by = 0.0f, bz = 0.0f;
-            if(base_expanded_pos && i < base_expanded_pos_count){
-                bx = base_expanded_pos[i*3 + 0];
-                by = base_expanded_pos[i*3 + 1];
-                bz = base_expanded_pos[i*3 + 2];
-            }
-            float mx = morph_expanded[i*3 + 0];
-            float my = morph_expanded[i*3 + 1];
-            float mz = morph_expanded[i*3 + 2];
-            fprintf(stderr,"morph sample %d: base=(%f,%f,%f) morph=(%f,%f,%f) delta=(%f,%f,%f)\n",
-                    i, bx,by,bz, mx,my,mz, mx-bx, my-by, mz-bz);
-        }
+        
 
         // upload expanded morph to GPU and bind to attribute location (4 + morph_count)
         GLuint morph_vbo; glGenBuffers(1,&morph_vbo);
@@ -630,26 +588,13 @@ static void mrotx(M4 m, float a){
 static void mroty(M4 m, float a){
     mid(m); m[0]=cosf(a); m[8]=sinf(a); m[2]=-sinf(a); m[10]=cosf(a);
 }
-static void mrotz(M4 m, float a){
-    mid(m); m[0]=cosf(a); m[4]=-sinf(a); m[1]=sinf(a); m[5]=cosf(a);
-}
+
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
-static void render(int m, int tick){
-    glUseProgram(g_prog);
-    printf("ATTR aPos=%d aNorm=%d aUV=%d aMask=%d aMorph0=%d aMorph1=%d\n",
-    glGetAttribLocation(g_prog,"aPos"),
-    glGetAttribLocation(g_prog,"aNorm"),
-    glGetAttribLocation(g_prog,"aUV"),
-    glGetAttribLocation(g_prog,"aMask"),
-    glGetAttribLocation(g_prog,"aMorph0"),
-    glGetAttribLocation(g_prog,"aMorph1"));
+static void render(int m, int tick __attribute__((unused))) {
 
-    printf("UNIF uMorph0=%d uMorph1=%d uMorphArray=%d uMorphScale=%d\n",
-      glGetUniformLocation(g_prog,"uMorph[0]"),
-      glGetUniformLocation(g_prog,"uMorph[1]"),
-      glGetUniformLocation(g_prog,"uMorph[0]"), // same as above for array
-      glGetUniformLocation(g_prog,"uMorphScale"));
+    glUseProgram(g_prog);
+
 
     // Normal morph upload (no forced debug)
 	upload_morph_uniforms(g_prog);

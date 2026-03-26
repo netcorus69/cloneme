@@ -1,23 +1,30 @@
-# Build artifacts
-*.o
-cloneme
-*.exe
-*.so
-*.a
+# Ignore backup files
+*.bak
+*.backup
+backup/
 
-# Editor and OS
-.DS_Store
-*.swp
-.vscode/
-.idea/
+# Ignore Blender files
+*.blend
+*.blend1
+*.blend2
+*.blend@
 
-# Logs and runtime files
+# Ignore logs
 *.log
-*.err
-/tmp/
-*.tmp
+cloneme_log.txt
 
-# Large generated assets (track with LFS if needed)
+# Ignore build artifacts
+*.o
 *.obj
-*.png
-*.wav
+*.mtl
+*.exe
+*.out
+
+# Ignore temporary files
+*.tmp
+*.swp
+*.swo
+
+# Ignore system files
+.DS_Store
+Thumbs.db

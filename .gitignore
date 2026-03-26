@@ -15,7 +15,6 @@ cloneme_log.txt
 
 # Ignore build artifacts
 *.o
-*.obj
 *.mtl
 *.exe
 *.out

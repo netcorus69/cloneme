@@ -18,6 +18,10 @@
 #include <locale.h>
 #include <semaphore.h>
 #include <time.h>
+#define MOUTH_MORPH   0
+#define EYELID_MORPH  1
+#define PUPIL_MORPH   2
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -52,6 +56,7 @@ static MorphTarget morphs[MAX_MORPHS];
 static int morph_count = 0;
 static float morph_weights[MAX_MORPHS] = {0.0f};
 static int is_talking = 0; // set to 1 when speaking, 0 when idle
+
 
 
 // ─── SHADERS ──────────────────────────────────────────────────────────────────
@@ -613,75 +618,122 @@ static GLuint load_texture(const char *path){
     return tex;
 }
 
+void update_idle_eyes(M4 eye_matrix_left, M4 eye_matrix_right, int is_talking) {
+    float t = SDL_GetTicks() * 0.001f;
+
+    // Gentle drift
+    float offset_x = 0.02f * sinf(t * 1.3f);
+    float offset_y = 0.01f * cosf(t * 0.9f);
+
+    if (!is_talking) {
+        mtrans(eye_matrix_left,  offset_x, offset_y, 0.0f);
+        mtrans(eye_matrix_right, offset_x, offset_y, 0.0f);
+    } else {
+        mtrans(eye_matrix_left, 0.0f, 0.0f, 0.0f);
+        mtrans(eye_matrix_right,0.0f, 0.0f, 0.0f);
+    }
+}
+
+void update_blink() {
+    static unsigned long last_blink = 0;
+    static int blinking = 0;
+    unsigned long now = SDL_GetTicks();
+
+    if (!blinking && now - last_blink > (3000u + rand()%4000u)) {
+        blinking = 1;
+        last_blink = now;
+    }
+
+    if (blinking) {
+        float phase = (now - last_blink) / 200.0f; // 200ms blink
+        if (phase < 1.0f) {
+            set_morph_weight(EYELID_MORPH, sinf(phase * M_PI)); // close then open
+        } else {
+            set_morph_weight(EYELID_MORPH, 0.0f);
+            blinking = 0;
+        }
+    }
+}
+
+
+
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
+
+
 static void render(int m, int tick __attribute__((unused))) {
     glUseProgram(g_prog);
+    
 
-    // Normal morph upload
-    upload_morph_uniforms(g_prog);
-    GLint locScale = glGetUniformLocation(g_prog, "uMorphScale");
-    if(locScale >= 0) glUniform1f(locScale, 1.0f);
 
-    // Smooth mouth animation
+    // Mouth morph
     static float s_mouth = 0.0f;
     float target = m ? 1.0f : 0.0f;
     s_mouth += (target - s_mouth) * 0.2f;
-    set_morph_weight(0, s_mouth);
+    set_morph_weight(MOUTH_MORPH, s_mouth);
+
+    // Eyelid blink
+    static unsigned long last_blink = 0;
+    static int blinking = 0;
+    unsigned long now = SDL_GetTicks();
+    if (!blinking && now - last_blink > (3000u + rand()%4000u)) {
+        blinking = 1;
+        last_blink = now;
+    }
+    if (blinking) {
+        float phase = (now - last_blink) / 200.0f;
+        if (phase < 1.0f) {
+            set_morph_weight(EYELID_MORPH, sinf(phase * M_PI));
+        } else {
+            set_morph_weight(EYELID_MORPH, 0.0f);
+            blinking = 0;
+        }
+    }
+
+    // Upload morphs
     upload_morph_uniforms(g_prog);
-    glUniform1f(glGetUniformLocation(g_prog,"uMorph0"), morph_weights[0]);
-    glUniform1f(glGetUniformLocation(g_prog,"uMorph1"), morph_weights[1]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph0"), morph_weights[MOUTH_MORPH]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph1"), morph_weights[EYELID_MORPH]);
 
-    glUniform3f(glGetUniformLocation(g_prog,"col"),1.0f,1.0f,1.0f);
+    // Head idle animation
+    if(g_head_vao && g_head_idx_count){
+        M4 S, Rx, Ry, Rz, T, tmp, tmp2, tmp3, M_mat, MVP;
+        mscl(S,   0.12f, 0.12f, 0.12f);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D,g_albedo_tex);
-    
-// start random move 
-		if(g_head_vao && g_head_idx_count){
-			M4 S, Rx, Ry, Rz, T, tmp, tmp2, tmp3, M_mat, MVP;
-			mscl(S,   0.12f, 0.12f, 0.12f);
+        float t = SDL_GetTicks() * 0.001f;
+        float angle_y = 0.05f * sinf(t);        // sway left/right
+        float angle_x = 0.03f * cosf(t*0.7f);   // gentle nod
+        float angle_z = 0.02f * sinf(t*0.5f);   // slight roll
 
-			// Time base (use SDL ticks or your tick counter)
-			float t = SDL_GetTicks() * 0.001f;
+        static float damp_x = 0.0f, damp_y = 0.0f, damp_z = 0.0f;
+        if (!is_talking) {
+            damp_x += (angle_x - damp_x) * 0.05f;
+            damp_y += (angle_y - damp_y) * 0.05f;
+            damp_z += (angle_z - damp_z) * 0.05f;
+        } else {
+            damp_x *= 0.9f;
+            damp_y *= 0.9f;
+            damp_z *= 0.9f;
+        }
 
-			// Idle angles (sinusoidal drift)
-			float angle_y = 0.05f * sinf(t);        // sway left/right
-			float angle_x = 0.03f * cosf(t*0.7f);   // gentle nod
-			float angle_z = 0.02f * sinf(t*0.5f);   // slight roll
+        mrotx(Rx, damp_x);
+        mroty(Ry, damp_y);
+        mrotz(Rz, damp_z);
 
-			// Smooth damping when talking
-			static float damp_x = 0.0f, damp_y = 0.0f, damp_z = 0.0f;
-			if (!is_talking) {
-				damp_x += (angle_x - damp_x) * 0.05f;
-				damp_y += (angle_y - damp_y) * 0.05f;
-				damp_z += (angle_z - damp_z) * 0.05f;
-			} else {
-				damp_x *= 0.9f;
-				damp_y *= 0.9f;
-				damp_z *= 0.9f;
-			}
+        mtrans(T, 0.0f, 0.0f, -1.0f);
+        mmul(tmp,   Ry,   Rx);
+        mmul(tmp3,  tmp,  Rz);
+        mmul(tmp2,  S,    tmp3);
+        mmul(M_mat, T,    tmp2);
+        mmul(MVP,   g_vp, M_mat);
 
-			mrotx(Rx, damp_x);
-			mroty(Ry, damp_y);
-			mrotz(Rz, damp_z);
-
-			mtrans(T, 0.0f, 0.0f, -1.0f);
-			mmul(tmp,   Ry,   Rx);
-			mmul(tmp3,  tmp,  Rz);
-			mmul(tmp2,  S,    tmp3);
-			mmul(M_mat, T,    tmp2);
-			mmul(MVP,   g_vp, M_mat);
-
-			glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
-			glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M_mat);
-			glBindVertexArray(g_head_vao);
-			glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
-		}
-
-
-    //finish random move
+        glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
+        glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M_mat);
+        glBindVertexArray(g_head_vao);
+        glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
+    }
 }
+
 
 
 // ─── FACE PROCESS ─────────────────────────────────────────────────────────────

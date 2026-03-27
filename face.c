@@ -18,11 +18,6 @@
 #include <locale.h>
 #include <semaphore.h>
 #include <time.h>
-#define MOUTH_MORPH   0
-#define EYELID_MORPH  1
-#define PUPIL_MORPH   2
-
-
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -31,11 +26,25 @@
 #include <sys/wait.h>
 #endif
 
+// --- Morph slot defines (match loader order) ---
+#define MOUTH_MORPH   0   // monkey_open.obj
+#define EYELID_MORPH  1   // monkey_wide.obj
+#define PUPIL_MORPH   2   // monkeyeyes.obj
+
+
 // stb_image: single-header image loader (PNG, JPG, etc.)
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
+
+
+
 // ─── GLOBALS ──────────────────────────────────────────────────────────────────
+
+//int g_mouth_idx  = find_morph_index_by_name("monkey_open.obj");
+//int g_eyelid_idx = find_morph_index_by_name("monkey_wide.obj");
+//int g_pupil_idx  = find_morph_index_by_name("monkeyeyes.obj");
+
 
 static pid_t face_pid = -1;     // PID of the forked renderer process
 int mouth_open = 0;             // 0 = closed, 1 = open (set by main process)
@@ -209,12 +218,6 @@ static void init_sphere(){
     free(v); free(idx);
 }
 
-int find_morph_index_by_name(const char *name) {
-    for(int i=0;i<morph_count;i++){
-        if(strcmp(morphs[i].name, name) == 0) return i;
-    }
-    return -1;
-}
 
 
 static float idle_angle = 0.0f;
@@ -271,6 +274,19 @@ static GLuint mkprog(void){
     glDeleteShader(vs); glDeleteShader(fs);
     return p;
 }
+
+// --- Resolve morph indices by filename ---
+int find_morph_index_by_name(const char *name) {
+    for (int i = 0; i < morph_count; i++) {
+        if (strcmp(morphs[i].name, name) == 0) return i;
+    }
+    return -1;
+}
+
+// Globals to hold resolved indices
+int g_mouth_idx  = -1;
+int g_eyelid_idx = -1;
+int g_pupil_idx  = -1;
 
 // ─── OBJ PARSING HELPERS ──────────────────────────────────────────────────────
 typedef struct { float x,y,z; } V3;
@@ -349,6 +365,14 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
 {
     FILE *f = fopen(base_path,"r");
     if(!f){ perror("load_obj fopen"); fprintf(stderr,"OBJ open failed: %s\n",base_path); return 0; }
+    
+    g_mouth_idx  = find_morph_index_by_name("monkey_open.obj");
+	g_eyelid_idx = find_morph_index_by_name("monkey_wide.obj");
+	g_pupil_idx  = find_morph_index_by_name("monkeyeyes.obj");
+
+	fprintf(stderr,"[DEBUG] Morph indices: mouth=%d eyelid=%d pupil=%d\n",
+			g_mouth_idx, g_eyelid_idx, g_pupil_idx);
+
 
     V3 *pos=NULL; int pos_n=0, pos_cap=0;
     UV *uv =NULL; int uv_n=0,  uv_cap=0;
@@ -671,17 +695,16 @@ void update_blink() {
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
-
 void render(int m, int is_talking) {
     // --- Time base for all animations ---
     float t = SDL_GetTicks() * 0.001f;
-	(void)is_talking;
+    (void)is_talking; // silence unused warning
 
     // --- Mouth morph (smooth open/close) ---
     static float s_mouth = 0.0f;
     float target = m ? 1.0f : 0.0f;
     s_mouth += (target - s_mouth) * 0.2f;
-    set_morph_weight(MOUTH_MORPH, s_mouth);
+    set_morph_weight(0, s_mouth); // morph 0 = mouth
 
     // --- Eyelid blink (random interval) ---
     static unsigned long last_blink = 0;
@@ -694,16 +717,16 @@ void render(int m, int is_talking) {
     if (blinking) {
         float phase = (now - last_blink) / 200.0f;
         if (phase < 1.0f) {
-            set_morph_weight(EYELID_MORPH, sinf(phase * M_PI));
+            set_morph_weight(1, sinf(phase * M_PI)); // morph 1 = eyelid
         } else {
-            set_morph_weight(EYELID_MORPH, 0.0f);
+            set_morph_weight(1, 0.0f);
             blinking = 0;
         }
     }
 
     // --- Pupil dilation (oscillating) ---
     float pupil_val = 0.5f + 0.5f * sinf(t);
-    set_morph_weight(PUPIL_MORPH, pupil_val);
+    set_morph_weight(2, pupil_val); // morph 2 = pupil
 
     // --- Clamp weights ---
     for(int i=0;i<morph_count;i++){
@@ -713,6 +736,9 @@ void render(int m, int is_talking) {
 
     // --- Upload morphs ---
     upload_morph_uniforms(g_prog);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph0"), morph_weights[0]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph1"), morph_weights[1]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph2"), morph_weights[2]);
 
     // --- Head idle animation (floating) ---
     if(g_head_vao && g_head_idx_count){
@@ -724,7 +750,6 @@ void render(int m, int is_talking) {
         float angle_z = 0.02f * sinf(t*0.5f);
 
         static float damp_x = 0.0f, damp_y = 0.0f, damp_z = 0.0f;
-        // Always update dampers — don’t freeze when talking
         damp_x += (angle_x - damp_x) * 0.05f;
         damp_y += (angle_y - damp_y) * 0.05f;
         damp_z += (angle_z - damp_z) * 0.05f;
@@ -746,6 +771,7 @@ void render(int m, int is_talking) {
         glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
     }
 }
+
 
 
 

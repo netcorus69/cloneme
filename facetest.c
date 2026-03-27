@@ -18,10 +18,9 @@
 #include <locale.h>
 #include <semaphore.h>
 #include <time.h>
-#define MOUTH_MORPH   0
+#define MOUTH_MORPH   4
 #define EYELID_MORPH  1
-#define PUPIL_MORPH   2
-
+#define PUPIL_MORPH   5
 
 #ifdef _WIN32
 #include <windows.h>
@@ -34,6 +33,9 @@
 // stb_image: single-header image loader (PNG, JPG, etc.)
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+// forward declaration so callers can use load_mask_file before its definition
+static int load_mask_file(const char *path, float **out_mask);
+
 
 // ─── GLOBALS ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +54,13 @@ static int g_normal_vis = 0;
 
 // Morph system
 #define MAX_MORPHS 8
-typedef struct { GLuint vbo; int vertex_count; char name[64]; } MorphTarget;
+typedef struct {
+    GLuint vbo;
+    int vertex_count;
+    char name[64];
+    GLuint mask_vbo;   // new: VBO holding per-vertex mask for this morph
+} MorphTarget;
+
 static MorphTarget morphs[MAX_MORPHS];
 static int morph_count = 0;
 static float morph_weights[MAX_MORPHS] = {0.0f};
@@ -209,12 +217,6 @@ static void init_sphere(){
     free(v); free(idx);
 }
 
-int find_morph_index_by_name(const char *name) {
-    for(int i=0;i<morph_count;i++){
-        if(strcmp(morphs[i].name, name) == 0) return i;
-    }
-    return -1;
-}
 
 
 static float idle_angle = 0.0f;
@@ -292,28 +294,73 @@ static void parse2f(const char *ptr, float *a, float *b){
 
 // Load a simple mask file: one float per original position index (whitespace separated).
 // Returns number of mask entries read, caller must free(*out_mask).
-static int load_mask_file(const char *path, float **out_mask){
-    FILE *f = fopen(path, "r");
-    if(!f) return 0;
-    int cap = 1024, n = 0;
-    float *mask = malloc(sizeof(float) * cap);
-    if(!mask){ fclose(f); return 0; }
-    while(1){
-        float v;
-        if(fscanf(f, "%f", &v) != 1) break;
-        if(n + 1 > cap){
-            cap *= 2;
-            float *tmp = realloc(mask, sizeof(float) * cap);
-            if(!tmp) break;
-            mask = tmp;
-        }
-        mask[n++] = v;
+// Create a GPU VBO from a mask file. Returns 0 on failure, VBO handle on success.
+// This version is tolerant: it accepts a path that may already have .mask or .obj,
+// and it prints the path it actually tried to load.
+// Create a GPU VBO from a mask file. Returns 0 on failure, VBO handle on success.
+static GLuint create_mask_vbo_from_file(const char *mask_path, int expected_count) {
+    float *mask = NULL;
+    int count = load_mask_file(mask_path, &mask);
+    if (mask && count == expected_count) {
+        GLuint vbo = 0;
+        glGenBuffers(1, &vbo);
+        glBindBuffer(GL_ARRAY_BUFFER, vbo);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(float) * count, mask, GL_STATIC_DRAW);
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+        free(mask);
+        fprintf(stderr, "create_mask_vbo_from_file: loaded %s (%d entries)\n", mask_path, count);
+        return vbo;
     }
-    fclose(f);
-    if(n == 0){ free(mask); return 0; }
-    *out_mask = mask;
-    return n;
+    if (mask) { free(mask); mask = NULL; }
+    fprintf(stderr, "create_mask_vbo_from_file: failed or size mismatch %s (%d != %d)\n",
+            mask_path, count, expected_count);
+    return 0;
 }
+
+
+
+
+
+// Attach mask VBO to morphs[morph_index] using morph filename (mpath).
+// Attach mask VBO to morphs[morph_index] using morph filename (mpath).
+// Tries multiple candidate mask filenames and logs what it attempts.
+// Attach mask VBO to morphs[morph_index] using morph filename (mpath).
+// Tries multiple candidate mask filenames and logs what it attempts.
+static void attach_mask_for_morph(int morph_index, const char *mpath, int vert_count) {
+    if (morph_index < 0 || morph_index >= MAX_MORPHS) return;
+
+    // Extract basename (strip path)
+    const char *base = strrchr(mpath, '/'); base = base ? base + 1 : mpath;
+
+    // Prepare basename without extension
+    char base_no_ext[256];
+    strncpy(base_no_ext, base, sizeof(base_no_ext)-1);
+    base_no_ext[sizeof(base_no_ext)-1] = '\0';
+    char *dot = strrchr(base_no_ext, '.');
+    if (dot) *dot = '\0';
+
+    // Candidate 1: masks/<basename_no_ext>.mask
+    char candidate[512];
+    snprintf(candidate, sizeof(candidate), "masks/%s.mask", base_no_ext);
+    GLuint mask_vbo = create_mask_vbo_from_file(candidate, vert_count);
+    if (mask_vbo) { morphs[morph_index].mask_vbo = mask_vbo; return; }
+
+    // Candidate 2: masks/<basename> (in case user named mask exactly like morph filename)
+    snprintf(candidate, sizeof(candidate), "masks/%s", base);
+    mask_vbo = create_mask_vbo_from_file(candidate, vert_count);
+    if (mask_vbo) { morphs[morph_index].mask_vbo = mask_vbo; return; }
+
+    // Candidate 3: masks/<basename>.mask (if basename still had extension)
+    snprintf(candidate, sizeof(candidate), "masks/%s.mask", base);
+    mask_vbo = create_mask_vbo_from_file(candidate, vert_count);
+    if (mask_vbo) { morphs[morph_index].mask_vbo = mask_vbo; return; }
+
+    // Nothing found
+    fprintf(stderr, "Warning: mask not found for morph %s (tried: %s, masks/%s, %s)\n",
+            mpath, candidate /* last candidate */, base_no_ext, base);
+    morphs[morph_index].mask_vbo = 0;
+}
+
 
 
 // ─── MORPH LOADER (positions only) ───────────────────────────────────────────
@@ -322,10 +369,6 @@ static int load_mask_file(const char *path, float **out_mask){
 static int load_morph_obj_positions(const char *path, float **out_positions, int *out_count){
     FILE *f = fopen(path,"r");
     if(!f){ perror("load_morph_obj_positions fopen"); return 0; }
-    for (int i = 0; i < morph_count; i++) {
-    fprintf(stderr, "[DEBUG] Morph %d: %s\n", i, morphs[i].name);
-}
-
     float *pos = NULL; int n=0, cap=0;
     char line[512];
     while(fgets(line,sizeof(line),f)){
@@ -453,16 +496,18 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
                         if(expanded_index >= base_expanded_pos_count) base_expanded_pos_count = expanded_index + 1;
                     }
                 }
-
+				
+				// no per-vertex mask baked into base VBO; using placeholder 0.0f
                 // choose mask from loaded mask file if available
-				float mask = 0.0f;
-				if(masks && p >= 0 && p < mask_count) mask = masks[p];
+				//float mask = 0.0f;
+				//if(masks && p >= 0 && p < mask_count) mask = masks[p];
 
 				// write into vdata (pos, norm, uv, mask)
 				vdata[vdata_n++] = px; vdata[vdata_n++] = py; vdata[vdata_n++] = pz;
 				vdata[vdata_n++] = nx; vdata[vdata_n++] = ny; vdata[vdata_n++] = nz;
 				vdata[vdata_n++] = u;  vdata[vdata_n++] = vv;
-				vdata[vdata_n++] = mask;
+				vdata[vdata_n++] = 0.0f; // placeholder; per-morph masks are bound separately
+
 
 
                 if(idx_n+1 > idx_cap){
@@ -556,6 +601,7 @@ static int load_obj_and_morphs_to_vao(const char *base_path, const char *morph_p
         morphs[morph_count].vbo = morph_vbo;
         morphs[morph_count].vertex_count = vert_count;
         strncpy(morphs[morph_count].name, mpath, 63);
+        attach_mask_for_morph(morph_count, mpath, vert_count);
         morphs[morph_count].name[63] = '\0';
         morph_count++;
 
@@ -667,23 +713,87 @@ void update_blink() {
 }
 
 
+static int g_current_mask_morph_index = -1;
+
+static void set_active_morph_mask(GLuint vao_to_use, int morph_index, int vert_count) {
+    (void)vert_count; // suppress unused parameter warning
+    if (morph_index < 0 || morph_index >= morph_count) return;
+    GLuint mask_vbo = morphs[morph_index].mask_vbo;
+    glBindVertexArray(vao_to_use);
+    if (mask_vbo) {
+        glBindBuffer(GL_ARRAY_BUFFER, mask_vbo);
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    } else {
+        static GLuint zero_vbo = 0;
+        if (zero_vbo == 0) {
+            float z = 0.0f;
+            glGenBuffers(1, &zero_vbo);
+            glBindBuffer(GL_ARRAY_BUFFER, zero_vbo);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(float), &z, GL_STATIC_DRAW);
+        } else {
+            glBindBuffer(GL_ARRAY_BUFFER, zero_vbo);
+        }
+        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)0);
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+    g_current_mask_morph_index = morph_index;
+}
+
+static void ensure_active_mask(GLuint vao, int morph_index, int vert_count) {
+    if (morph_index == g_current_mask_morph_index) return;
+    set_active_morph_mask(vao, morph_index, vert_count);
+}
+
+
+// Load a simple mask file: one float per original position index (whitespace separated).
+// Returns number of mask entries read, caller must free(*out_mask).
+static int load_mask_file(const char *path, float **out_mask) {
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    int cap = 1024, n = 0;
+    float *mask = malloc(sizeof(float) * cap);
+    if (!mask) { fclose(f); return 0; }
+    while (1) {
+        float v;
+        if (fscanf(f, "%f", &v) != 1) break;
+        if (n + 1 > cap) {
+            cap *= 2;
+            float *tmp = realloc(mask, sizeof(float) * cap);
+            if (!tmp) { free(mask); fclose(f); return 0; }
+            mask = tmp;
+        }
+        mask[n++] = v;
+    }
+    fclose(f);
+    if (n == 0) { free(mask); return 0; }
+    *out_mask = mask;
+    return n;
+}
 
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 
 
-void render(int m, int is_talking) {
-    // --- Time base for all animations ---
-    float t = SDL_GetTicks() * 0.001f;
-	(void)is_talking;
+static void render(int m, int tick __attribute__((unused))) {
+    glUseProgram(g_prog);
+    
+fprintf(stderr, "MORPHS: count=%d\n", morph_count);
+for (int i = 0; i < morph_count; ++i) {
+    fprintf(stderr, " morph[%d] name='%s' vbo=%u verts=%d mask_vbo=%u weight=%f\n",
+            i, morphs[i].name, morphs[i].vbo, morphs[i].vertex_count, morphs[i].mask_vbo, morph_weights[i]);
+}
 
-    // --- Mouth morph (smooth open/close) ---
+
+    // Mouth morph
     static float s_mouth = 0.0f;
     float target = m ? 1.0f : 0.0f;
     s_mouth += (target - s_mouth) * 0.2f;
     set_morph_weight(MOUTH_MORPH, s_mouth);
 
-    // --- Eyelid blink (random interval) ---
+    // Eyelid blink
     static unsigned long last_blink = 0;
     static int blinking = 0;
     unsigned long now = SDL_GetTicks();
@@ -701,56 +811,57 @@ void render(int m, int is_talking) {
         }
     }
 
-    // --- Pupil dilation (oscillating) ---
-    float pupil_val = 0.5f + 0.5f * sinf(t);
-    set_morph_weight(PUPIL_MORPH, pupil_val);
-
-    // --- Clamp weights ---
-    for(int i=0;i<morph_count;i++){
-        if (morph_weights[i] < 0.0f) morph_weights[i] = 0.0f;
-        if (morph_weights[i] > 1.0f) morph_weights[i] = 1.0f;
-    }
-
-    // --- Upload morphs ---
+    // Upload morphs
     upload_morph_uniforms(g_prog);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph0"), morph_weights[MOUTH_MORPH]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph1"), morph_weights[EYELID_MORPH]);
 
-    // --- Head idle animation (floating) ---
+    // Head idle animation
     if(g_head_vao && g_head_idx_count){
         M4 S, Rx, Ry, Rz, T, tmp, tmp2, tmp3, M_mat, MVP;
-        mscl(S, 0.12f, 0.12f, 0.12f);
+        mscl(S,   0.12f, 0.12f, 0.12f);
 
-        float angle_y = 0.05f * sinf(t);
-        float angle_x = 0.03f * cosf(t*0.7f);
-        float angle_z = 0.02f * sinf(t*0.5f);
+        float t = SDL_GetTicks() * 0.001f;
+        float angle_y = 0.05f * sinf(t);        // sway left/right
+        float angle_x = 0.03f * cosf(t*0.7f);   // gentle nod
+        float angle_z = 0.02f * sinf(t*0.5f);   // slight roll
 
         static float damp_x = 0.0f, damp_y = 0.0f, damp_z = 0.0f;
-        // Always update dampers — don’t freeze when talking
-        damp_x += (angle_x - damp_x) * 0.05f;
-        damp_y += (angle_y - damp_y) * 0.05f;
-        damp_z += (angle_z - damp_z) * 0.05f;
+        if (!is_talking) {
+            damp_x += (angle_x - damp_x) * 0.05f;
+            damp_y += (angle_y - damp_y) * 0.05f;
+            damp_z += (angle_z - damp_z) * 0.05f;
+        } else {
+            damp_x *= 0.9f;
+            damp_y *= 0.9f;
+            damp_z *= 0.9f;
+        }
 
         mrotx(Rx, damp_x);
         mroty(Ry, damp_y);
         mrotz(Rz, damp_z);
 
         mtrans(T, 0.0f, 0.0f, -1.0f);
-        mmul(tmp, Ry, Rx);
-        mmul(tmp3, tmp, Rz);
-        mmul(tmp2, S, tmp3);
-        mmul(M_mat, T, tmp2);
-        mmul(MVP, g_vp, M_mat);
+        mmul(tmp,   Ry,   Rx);
+        mmul(tmp3,  tmp,  Rz);
+        mmul(tmp2,  S,    tmp3);
+        mmul(M_mat, T,    tmp2);
+        mmul(MVP,   g_vp, M_mat);
 
-        glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,GL_FALSE,MVP);
-        glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,GL_FALSE,M_mat);
+        glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
+        glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M_mat);
+        int chosen_mask_morph = -1;
+		if (morph_weights[EYELID_MORPH] > 0.001f) chosen_mask_morph = EYELID_MORPH;
+		else if (morph_weights[MOUTH_MORPH] > 0.001f) chosen_mask_morph = MOUTH_MORPH;
+
+		if (chosen_mask_morph >= 0) {
+			ensure_active_mask(g_head_vao, chosen_mask_morph, morphs[0].vertex_count);
+		}
+
         glBindVertexArray(g_head_vao);
         glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
     }
 }
-
-
-
-
-
 
 
 
@@ -789,19 +900,13 @@ static void run_face_process(){
     init_sphere();
     glUseProgram(g_prog);
 
-		// Load head mesh + morphs (mouth, eyelid, pupil)
-		const char *morph_files[] = {
-			"monkey_open.obj",   // mouth morph
-			"monkey_wide.obj",   // eyelid morph
-			"monkeyeyes.obj"     // pupil morph
-		};
-
-		if(!load_obj_and_morphs_to_vao("monkey.obj", morph_files, 3, &g_head_vao, &g_head_idx_count)){
-			fprintf(stderr,"[DEBUG] Failed to load monkey.obj — using sphere fallback\n");
-		} else {
-			printf("[DEBUG] Head mesh loaded: VAO=%u, indices=%d\n",g_head_vao,g_head_idx_count);
-		}
-
+    // Load head mesh + morphs
+    const char *morph_files[] = {"monkey_open.obj", "monkey_wide.obj"}; // edit as needed
+    if(!load_obj_and_morphs_to_vao("monkey.obj", morph_files, 2, &g_head_vao, &g_head_idx_count)){
+        fprintf(stderr,"[DEBUG] Failed to load head.obj — using sphere fallback\n");
+    } else {
+        printf("[DEBUG] Head mesh loaded: VAO=%u, indices=%d\n",g_head_vao,g_head_idx_count);
+    }
 
     // Load texture
     g_albedo_tex = load_texture("monkey.png");

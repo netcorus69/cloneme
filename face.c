@@ -17,6 +17,7 @@
 #include <math.h>
 #include <locale.h>
 #include <semaphore.h>
+#include <time.h>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -50,6 +51,8 @@ typedef struct { GLuint vbo; int vertex_count; char name[64]; } MorphTarget;
 static MorphTarget morphs[MAX_MORPHS];
 static int morph_count = 0;
 static float morph_weights[MAX_MORPHS] = {0.0f};
+static int is_talking = 0; // set to 1 when speaking, 0 when idle
+
 
 // ─── SHADERS ──────────────────────────────────────────────────────────────────
 // Shaders are written in GLSL 330 (OpenGL 3.3 Core)
@@ -153,6 +156,18 @@ static void mscl(M4 m, float x, float y, float z){
     mid(m); m[0]=x; m[5]=y; m[10]=z;
 }
 
+// ─── ROTATION MATRICES ───────────────────────────────────────────────────────
+static void mrotx(M4 m, float a){
+    mid(m); m[5]=cosf(a); m[9]=-sinf(a); m[6]=sinf(a); m[10]=cosf(a);
+}
+static void mroty(M4 m, float a){
+    mid(m); m[0]=cosf(a); m[8]=sinf(a); m[2]=-sinf(a); m[10]=cosf(a);
+}
+static void mrotz(M4 m, float a){
+    mid(m); m[0]=cosf(a); m[4]=sinf(a); m[1]=-sinf(a); m[5]=cosf(a);
+}
+
+
 // ─── SPHERE (fallback geometry) ───────────────────────────────────────────────
 #define SL 32   // longitude slices
 #define ST 20   // latitude stacks
@@ -187,6 +202,23 @@ static void init_sphere(){
     glVertexAttribPointer(1,3,GL_FLOAT,0,24,(void*)12); glEnableVertexAttribArray(1);
     free(v); free(idx);
 }
+
+
+
+static float idle_angle = 0.0f;
+static unsigned long last_idle_tick = 0;
+
+void update_idle_head(M4 head_matrix, unsigned long tick) {
+    if (!is_talking) {
+        if (tick - last_idle_tick > 200) { // update every ~200ms
+            last_idle_tick = tick;
+            float delta = ((float)rand() / RAND_MAX - 0.5f) * 0.05f; // small random step
+            idle_angle += delta;
+            mrotz(head_matrix, idle_angle); // rotate head around Z
+        }
+    }
+}
+
 
 // ─── SHADER PROGRAM ───────────────────────────────────────────────────────────
 
@@ -581,57 +613,76 @@ static GLuint load_texture(const char *path){
     return tex;
 }
 
-// ─── ROTATION MATRICES ───────────────────────────────────────────────────────
-static void mrotx(M4 m, float a){
-    mid(m); m[5]=cosf(a); m[9]=-sinf(a); m[6]=sinf(a); m[10]=cosf(a);
-}
-static void mroty(M4 m, float a){
-    mid(m); m[0]=cosf(a); m[8]=sinf(a); m[2]=-sinf(a); m[10]=cosf(a);
-}
-
 
 // ─── RENDER ───────────────────────────────────────────────────────────────────
 static void render(int m, int tick __attribute__((unused))) {
-
     glUseProgram(g_prog);
 
+    // Normal morph upload
+    upload_morph_uniforms(g_prog);
+    GLint locScale = glGetUniformLocation(g_prog, "uMorphScale");
+    if(locScale >= 0) glUniform1f(locScale, 1.0f);
 
-    // Normal morph upload (no forced debug)
-	upload_morph_uniforms(g_prog);
-	GLint locScale = glGetUniformLocation(g_prog, "uMorphScale");
-	if(locScale >= 0) glUniform1f(locScale, 1.0f);
-
-
-    // Smooth mouth animation (kept but will be overridden by debug force above)
+    // Smooth mouth animation
     static float s_mouth = 0.0f;
     float target = m ? 1.0f : 0.0f;
     s_mouth += (target - s_mouth) * 0.2f;
     set_morph_weight(0, s_mouth);
     upload_morph_uniforms(g_prog);
-    glUniform1f(glGetUniformLocation(g_prog, "uMorph0"), morph_weights[0]);
-    glUniform1f(glGetUniformLocation(g_prog, "uMorph1"), morph_weights[1]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph0"), morph_weights[0]);
+    glUniform1f(glGetUniformLocation(g_prog,"uMorph1"), morph_weights[1]);
 
     glUniform3f(glGetUniformLocation(g_prog,"col"),1.0f,1.0f,1.0f);
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D,g_albedo_tex);
+    
+// start random move 
+		if(g_head_vao && g_head_idx_count){
+			M4 S, Rx, Ry, Rz, T, tmp, tmp2, tmp3, M_mat, MVP;
+			mscl(S,   0.12f, 0.12f, 0.12f);
 
-    if(g_head_vao && g_head_idx_count){
-        M4 S, Rx, Ry, T, tmp, tmp2, M_mat, MVP;
-        mscl(S,   0.12f, 0.12f, 0.12f);
-        mrotx(Rx, 0.0f);
-        mroty(Ry, 0.0f);
-        mtrans(T, 0.0f, 0.0f, -1.0f);
-        mmul(tmp,   Ry,   Rx);
-        mmul(tmp2,  S,    tmp);
-        mmul(M_mat, T,    tmp2);
-        mmul(MVP,   g_vp, M_mat);
-        glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
-        glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M_mat);
-        glBindVertexArray(g_head_vao);
-        glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
-    }
+			// Time base (use SDL ticks or your tick counter)
+			float t = SDL_GetTicks() * 0.001f;
+
+			// Idle angles (sinusoidal drift)
+			float angle_y = 0.05f * sinf(t);        // sway left/right
+			float angle_x = 0.03f * cosf(t*0.7f);   // gentle nod
+			float angle_z = 0.02f * sinf(t*0.5f);   // slight roll
+
+			// Smooth damping when talking
+			static float damp_x = 0.0f, damp_y = 0.0f, damp_z = 0.0f;
+			if (!is_talking) {
+				damp_x += (angle_x - damp_x) * 0.05f;
+				damp_y += (angle_y - damp_y) * 0.05f;
+				damp_z += (angle_z - damp_z) * 0.05f;
+			} else {
+				damp_x *= 0.9f;
+				damp_y *= 0.9f;
+				damp_z *= 0.9f;
+			}
+
+			mrotx(Rx, damp_x);
+			mroty(Ry, damp_y);
+			mrotz(Rz, damp_z);
+
+			mtrans(T, 0.0f, 0.0f, -1.0f);
+			mmul(tmp,   Ry,   Rx);
+			mmul(tmp3,  tmp,  Rz);
+			mmul(tmp2,  S,    tmp3);
+			mmul(M_mat, T,    tmp2);
+			mmul(MVP,   g_vp, M_mat);
+
+			glUniformMatrix4fv(glGetUniformLocation(g_prog,"MVP"),1,0,MVP);
+			glUniformMatrix4fv(glGetUniformLocation(g_prog,"M"),1,0,M_mat);
+			glBindVertexArray(g_head_vao);
+			glDrawElements(GL_TRIANGLES,g_head_idx_count,GL_UNSIGNED_INT,0);
+		}
+
+
+    //finish random move
 }
+
 
 // ─── FACE PROCESS ─────────────────────────────────────────────────────────────
 static void run_face_process(){
